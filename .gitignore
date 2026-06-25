@@ -1,0 +1,17 @@
+# Node
+node_modules/
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+env/
+
+# Flask Session & SQLite Data
+flask_session/
+*.db
+
+# Sensitive Firebase Admin Key - NEVER UPLOAD TO GITHUB
+rategain-d3708-firebase-adminsdk-fbsvc-76c80d10de.json
