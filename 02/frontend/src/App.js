@@ -2,42 +2,22 @@ import axios from "axios";
 import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import { auth } from "./firebase";
-import { signInWithCustomToken, signOut, onAuthStateChanged } from "firebase/auth";
-import { ClerkProvider, SignedIn, SignedOut, SignIn, UserButton, useAuth } from "@clerk/clerk-react";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithCustomToken, signOut, onAuthStateChanged, updateProfile } from "firebase/auth";
 
 axios.defaults.withCredentials = true;
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:5001";
 const OTHER_APP_URL = process.env.REACT_APP_OTHER_APP_URL || "http://localhost:3000";
-const CLERK_PUB_KEY = process.env.REACT_APP_CLERK_PUBLISHABLE_KEY;
+const OTHER_BACKEND_URL = process.env.REACT_APP_OTHER_BACKEND_URL || "http://localhost:5000";
 
-if (!CLERK_PUB_KEY) {
-  console.warn("Missing REACT_APP_CLERK_PUBLISHABLE_KEY");
-}
-
-function SyncFirebase() {
-  const { getToken } = useAuth();
-  
-  useEffect(() => {
-    const sync = async () => {
-      try {
-        const token = await getToken({ template: "integration_firebase" });
-        if (token) {
-          await signInWithCustomToken(auth, token);
-        }
-      } catch (err) {
-        console.error("Firebase sync error:", err);
-      }
-    };
-    sync();
-  }, [getToken]);
-
-  return null;
-}
-
-function AppContent() {
+function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [authError, setAuthError] = useState("");
   const isLoggingOut = useRef(false);
 
   useEffect(() => {
@@ -47,6 +27,7 @@ function AppContent() {
       const urlParams = new URLSearchParams(window.location.search);
       const action = urlParams.get('action');
       const redirectUri = urlParams.get('redirect');
+      const ssoToken = urlParams.get('sso_token');
 
       if (action === 'logout') {
         isLoggingOut.current = true;
@@ -63,6 +44,19 @@ function AppContent() {
           setLoading(false);
         }
         return; 
+      }
+
+      if (ssoToken && ssoToken !== "none") {
+        try {
+          const res = await axios.post(`${OTHER_BACKEND_URL}/verify-sso-token`, { sso_token: ssoToken });
+          await signInWithCustomToken(auth, res.data.firebase_token);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } catch(e) {
+          console.error("SSO Token Verification Failed:", e);
+        }
+      } else if (ssoToken === "none") {
+        sessionStorage.setItem("has_checked_sso", "true");
+        window.history.replaceState({}, document.title, window.location.pathname);
       }
 
       unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -82,7 +76,13 @@ function AppContent() {
             setLoading(false);
             return;
           }
-          try { await axios.get(`${BACKEND_URL}/logout`); } catch(e) {}
+          
+          if (!ssoToken && !sessionStorage.getItem("has_checked_sso")) {
+             sessionStorage.setItem("has_checked_sso", "true");
+             window.location.href = `${OTHER_APP_URL}?sso_check=true&redirect=${window.location.href}`;
+             return;
+          }
+
           setLoading(false);
         }
       });
@@ -95,10 +95,46 @@ function AppContent() {
     };
   }, []);
 
+  const handleLocalAuth = async (e) => {
+    e.preventDefault();
+    setAuthError("");
+    try {
+      const encryptedPassword = btoa(password); 
+      if (isRegistering) {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, encryptedPassword);
+        await updateProfile(userCredential.user, { displayName: name });
+      } else {
+        await signInWithEmailAndPassword(auth, email, encryptedPassword);
+      }
+    } catch (err) {
+      setAuthError(err.message || "An error occurred");
+    }
+  };
+
+  const handleLogout = async () => {
+    isLoggingOut.current = true;
+    try {
+      await signOut(auth);
+      await axios.get(`${BACKEND_URL}/logout`);
+      setUser(null);
+      window.location.href = `${OTHER_APP_URL}?action=logout&redirect=${window.location.origin}`;
+    } catch (error) {
+      console.log("Logout failed", error);
+    }
+  };
+
+  const handleGoToAppA = async () => {
+    // Going to App A doesn't strictly need a token since App A is the "Master" authenticator that already checks Firebase.
+    // But we can redirect.
+    window.location.href = OTHER_APP_URL;
+  };
+
   if (loading) {
     return (
       <div className="App">
-        <div className="container"><p>Loading...</p></div>
+        <div className="container">
+          <p>Loading...</p>
+        </div>
       </div>
     );
   }
@@ -106,58 +142,79 @@ function AppContent() {
   return (
     <div className="App">
       <div className="container">
-        <SignedOut>
-          <div className="auth-card" style={{ padding: 0, boxShadow: 'none', background: 'transparent' }}>
-             <SignIn routing="hash" />
-          </div>
-        </SignedOut>
-        
-        <SignedIn>
-          <SyncFirebase />
-          {!user ? (
-            <div className="auth-card" style={{ padding: 0, boxShadow: 'none', background: 'transparent' }}>
-               <p>Syncing session...</p>
-            </div>
-          ) : (
-            <div className="user-info">
-              <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
-                <UserButton afterSignOutUrl="/" />
-              </div>
-              <h1 className="welcome">Hi, {user.name}! 👋</h1>
-              <p className="email">{user.email}</p>
-              <p><strong>Role:</strong> {user.role}</p>
-              <p>You have successfully logged into App B.</p>
-              <button 
-                className="login-btn" 
-                onClick={() => window.location.href = OTHER_APP_URL} 
-                style={{ marginBottom: "15px", backgroundColor: "#f0f0f0", color: "#333", border: "1px solid #ccc" }}
-              >
-                Go to App A
+        {!user ? (
+          <div className="auth-card">
+            <h1>{isRegistering ? "Create an Account" : "Welcome to App B 👋"}</h1>
+            <p>{isRegistering ? "Sign up to get started" : "Sign in to your account"}</p>
+            
+            {authError && <div className={authError.includes("successful") ? "success-message" : "error-message"}>{authError}</div>}
+            
+            <form onSubmit={handleLocalAuth} className="auth-form">
+              {isRegistering && (
+                <input 
+                  type="text" 
+                  placeholder="Full Name" 
+                  value={name} 
+                  onChange={(e) => setName(e.target.value)} 
+                  required 
+                />
+              )}
+              <input 
+                type="email" 
+                placeholder="Email Address" 
+                value={email} 
+                onChange={(e) => setEmail(e.target.value)} 
+                required 
+              />
+              <input 
+                type="password" 
+                placeholder="Password" 
+                value={password} 
+                onChange={(e) => setPassword(e.target.value)} 
+                required 
+              />
+              <button type="submit" className="login-btn primary-btn">
+                {isRegistering ? "Register" : "Sign In"}
               </button>
+            </form>
+            
+            <div className="toggle-auth">
+              {isRegistering ? (
+                <p>Already have an account? <span onClick={() => setIsRegistering(false)}>Sign In</span></p>
+              ) : (
+                <p>Don't have an account? <span onClick={() => setIsRegistering(true)}>Register</span></p>
+              )}
             </div>
-          )}
-        </SignedIn>
+
+            <button 
+              className="login-btn" 
+              onClick={handleGoToAppA} 
+              style={{ marginTop: "15px", backgroundColor: "#f0f0f0", color: "#333", border: "1px solid #ccc" }}
+            >
+              Go to App A
+            </button>
+          </div>
+        ) : (
+          <div className="user-info">
+            <div className="avatar">{user.name.charAt(0).toUpperCase()}</div>
+            <h1 className="welcome">Hi, {user.name}! 👋</h1>
+            <p className="email">{user.email}</p>
+            <p><strong>Role:</strong> {user.role}</p>
+            <p>You have successfully logged into App B.</p>
+            <button 
+              className="login-btn" 
+              onClick={handleGoToAppA} 
+              style={{ marginBottom: "15px", backgroundColor: "#f0f0f0", color: "#333", border: "1px solid #ccc" }}
+            >
+              Go to App A
+            </button>
+            <button className="logout-btn" onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
+        )}
       </div>
     </div>
-  );
-}
-
-function App() {
-  if (!CLERK_PUB_KEY) {
-    return (
-      <div className="App">
-        <div className="container">
-          <h2>Missing Clerk Key</h2>
-          <p>Please add REACT_APP_CLERK_PUBLISHABLE_KEY to your .env file.</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <ClerkProvider publishableKey={CLERK_PUB_KEY}>
-      <AppContent />
-    </ClerkProvider>
   );
 }
 

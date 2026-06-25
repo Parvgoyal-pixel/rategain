@@ -69,6 +69,15 @@ def get_db_connection():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sso_tokens (
+            token VARCHAR(255) PRIMARY KEY,
+            uid VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
     conn.commit()
     
     # Try to add role column in case table already exists
@@ -205,8 +214,60 @@ def sso_check_ajax():
     else:
         return jsonify({"error": "not_logged_in"}), 401
 
+import uuid
+
+@app.route("/generate-sso-token", methods=["POST"])
+def generate_sso_token():
+    data = request.json
+    id_token = data.get("idToken")
+    if not id_token:
+        return jsonify({"error": "Missing token"}), 400
+    
+    try:
+        decoded_token = firebase_auth.verify_id_token(id_token)
+        uid = decoded_token.get("uid")
+        
+        sso_token = str(uuid.uuid4())
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO sso_tokens (token, uid) VALUES (%s, %s)", (sso_token, uid))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({"sso_token": sso_token})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 401
+
+@app.route("/verify-sso-token", methods=["POST"])
+def verify_sso_token():
+    data = request.json
+    sso_token = data.get("sso_token")
+    if not sso_token:
+        return jsonify({"error": "Missing sso_token"}), 400
+        
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM sso_tokens WHERE token = %s", (sso_token,))
+    token_row = cursor.fetchone()
+    
+    if token_row:
+        uid = token_row["uid"]
+        cursor.execute("DELETE FROM sso_tokens WHERE token = %s", (sso_token,))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        custom_token = firebase_auth.create_custom_token(uid)
+        token_str = custom_token.decode("utf-8") if isinstance(custom_token, bytes) else custom_token
+        return jsonify({"firebase_token": token_str})
+    else:
+        cursor.close()
+        conn.close()
+        return jsonify({"error": "Invalid or expired token"}), 401
+
 if __name__ == "__main__":
-  
     try:
         print("Initializing database connection...")
         test_conn = get_db_connection()
@@ -214,6 +275,5 @@ if __name__ == "__main__":
         print("Database 'usersDB' initialized successfully!")
     except Exception as e:
         print(f"Database Initialization Error: {e}")
-        print("Ensure MySQL service is running and credentials in DB_CONFIG are correct.")
 
     app.run(debug=True)
