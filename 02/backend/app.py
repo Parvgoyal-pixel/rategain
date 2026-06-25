@@ -9,9 +9,17 @@ import firebase_admin
 from firebase_admin import credentials, auth as firebase_auth
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
-
 app.secret_key = "CHANGE_THIS_TO_RANDOM_SECRET"
+
+allowed_domains_env = os.environ.get("ALLOWED_DOMAINS")
+if allowed_domains_env:
+    ALLOWED_DOMAINS = [d.strip() for d in allowed_domains_env.split(",")]
+    CORS_ORIGINS = [f"https://{d}" for d in ALLOWED_DOMAINS] + ["http://localhost:3000", "http://localhost:3001"]
+else:
+    ALLOWED_DOMAINS = ["localhost:3000", "localhost:3001", "127.0.0.1:3000", "127.0.0.1:3001"]
+    CORS_ORIGINS = ["http://localhost:3000", "http://localhost:3001"]
+
+CORS(app, supports_credentials=True, origins=CORS_ORIGINS)
 
 firebase_creds_json = os.environ.get("FIREBASE_CREDENTIALS")
 if firebase_creds_json:
@@ -118,11 +126,6 @@ def sso_check():
         return jsonify({"error": "Missing redirect url"}), 400
         
     # Prevent Open Redirect Vulnerability
-    allowed_domains_env = os.environ.get("ALLOWED_DOMAINS")
-    if allowed_domains_env:
-        ALLOWED_DOMAINS = [d.strip() for d in allowed_domains_env.split(",")]
-    else:
-        ALLOWED_DOMAINS = ["localhost:3000", "localhost:3001", "127.0.0.1:3000", "127.0.0.1:3001"]
     parsed_url = urlparse(redirect_url)
     if parsed_url.netloc not in ALLOWED_DOMAINS:
         return jsonify({"error": "Unauthorized redirect domain"}), 403
