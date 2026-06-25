@@ -12,6 +12,7 @@ const OTHER_APP_URL = process.env.REACT_APP_OTHER_APP_URL || "http://localhost:3
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [authError, setAuthError] = useState("");
   const isLoggingOut = useRef(false);
 
@@ -134,6 +135,7 @@ function App() {
   };
 
   const handleGoToAppB = async () => {
+    setIsRedirecting(true);
     if (user && auth.currentUser) {
       try {
         const idToken = await auth.currentUser.getIdToken();
@@ -176,10 +178,11 @@ function App() {
 
             <button 
               className="login-btn" 
-              onClick={() => window.location.href = OTHER_APP_URL} 
-              style={{ marginTop: "15px", backgroundColor: "#f0f0f0", color: "#333", border: "1px solid #ccc" }}
+              onClick={handleGoToAppB} 
+              disabled={isRedirecting}
+              style={{ marginTop: "15px", backgroundColor: "#f0f0f0", color: "#333", border: "1px solid #ccc", opacity: isRedirecting ? 0.6 : 1, cursor: isRedirecting ? "not-allowed" : "pointer" }}
             >
-              Go to App B
+              {isRedirecting ? "Redirecting securely..." : "Go to App B"}
             </button>
           </div>
         ) : (
@@ -192,9 +195,10 @@ function App() {
             <button 
               className="login-btn" 
               onClick={handleGoToAppB} 
-              style={{ marginBottom: "15px", backgroundColor: "#f0f0f0", color: "#333", border: "1px solid #ccc" }}
+              disabled={isRedirecting}
+              style={{ marginBottom: "15px", backgroundColor: "#f0f0f0", color: "#333", border: "1px solid #ccc", opacity: isRedirecting ? 0.6 : 1, cursor: isRedirecting ? "not-allowed" : "pointer" }}
             >
-              Go to App B
+              {isRedirecting ? "Redirecting securely..." : "Go to App B"}
             </button>
             <button className="logout-btn" onClick={handleLogout}>
               Logout
