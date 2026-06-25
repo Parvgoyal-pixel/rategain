@@ -46,6 +46,7 @@ DB_CONFIG = {
     'host': os.environ.get('DB_HOST', 'localhost'),
     'user': os.environ.get('DB_USER', 'root'),
     'password': os.environ.get('DB_PASSWORD', ''),
+    'port': int(os.environ.get('DB_PORT', 3306))
 }
 DB_NAME = os.environ.get('DB_NAME', 'usersDB')
 
@@ -85,6 +86,10 @@ def get_db_connection():
     cursor.close()
     return conn
 
+
+@app.route("/")
+def home():
+    return jsonify({"status": "App A Backend is running properly!"})
 
 @app.route("/user")
 def user():

@@ -70,6 +70,10 @@ def init_db():
 
 init_db()
 
+@app.route("/")
+def home():
+    return jsonify({"status": "App B Backend is running properly!"})
+
 @app.route("/login-firebase", methods=["POST"])
 def login_firebase():
     data = request.json
