@@ -34,15 +34,7 @@ try:
     firebase_admin.initialize_app(cred)
 except ValueError:
     pass # Already initialized
-app.config["SESSION_COOKIE_NAME"] = "sso_cookie_b"
-
-if os.environ.get("FLASK_ENV") == "production":
-    app.config["SESSION_COOKIE_SAMESITE"] = "None"
-    app.config["SESSION_COOKIE_SECURE"] = True
-else:
-    # Force SameSite None even if not strictly set, just in case they missed the env var!
-    app.config["SESSION_COOKIE_SAMESITE"] = "None"
-    app.config["SESSION_COOKIE_SECURE"] = True
+# Clerk handles multi-domain SSO, so we no longer need complex cross-domain cookies!
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

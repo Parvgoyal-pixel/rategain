@@ -40,15 +40,7 @@ try:
 except ValueError:
     pass
 
-app.config["SESSION_COOKIE_NAME"] = "sso_cookie_a"
-
-if os.environ.get("FLASK_ENV") == "production":
-    app.config["SESSION_COOKIE_SAMESITE"] = "None"
-    app.config["SESSION_COOKIE_SECURE"] = True
-else:
-    # Force SameSite None even if not strictly set, just in case they missed the env var!
-    app.config["SESSION_COOKIE_SAMESITE"] = "None"
-    app.config["SESSION_COOKIE_SECURE"] = True
+# Clerk handles multi-domain SSO, so we no longer need complex cross-domain cookies!
 
 DB_CONFIG = {
     'host': os.environ.get('DB_HOST', 'localhost'),
