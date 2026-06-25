@@ -34,17 +34,15 @@ try:
     firebase_admin.initialize_app(cred)
 except ValueError:
     pass # Already initialized
-app.config["SESSION_TYPE"] = "filesystem"
 app.config["SESSION_COOKIE_NAME"] = "sso_cookie_b"
 
 if os.environ.get("FLASK_ENV") == "production":
     app.config["SESSION_COOKIE_SAMESITE"] = "None"
     app.config["SESSION_COOKIE_SECURE"] = True
-
-
-
-
-Session(app)
+else:
+    # Force SameSite None even if not strictly set, just in case they missed the env var!
+    app.config["SESSION_COOKIE_SAMESITE"] = "None"
+    app.config["SESSION_COOKIE_SECURE"] = True
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

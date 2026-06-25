@@ -40,23 +40,22 @@ try:
 except ValueError:
     pass
 
-app.config["SESSION_TYPE"] = "filesystem"
 app.config["SESSION_COOKIE_NAME"] = "sso_cookie_a"
 
 if os.environ.get("FLASK_ENV") == "production":
     app.config["SESSION_COOKIE_SAMESITE"] = "None"
     app.config["SESSION_COOKIE_SECURE"] = True
-
-
-
-
-Session(app)
+else:
+    # Force SameSite None even if not strictly set, just in case they missed the env var!
+    app.config["SESSION_COOKIE_SAMESITE"] = "None"
+    app.config["SESSION_COOKIE_SECURE"] = True
 
 DB_CONFIG = {
     'host': os.environ.get('DB_HOST', 'localhost'),
     'user': os.environ.get('DB_USER', 'root'),
     'password': os.environ.get('DB_PASSWORD', ''),
-    'port': int(os.environ.get('DB_PORT', 23221))
+    'port': int(os.environ.get('DB_PORT', 23221)),
+    'ssl_disabled': False
 }
 DB_NAME = os.environ.get('DB_NAME', 'usersDB')
 
