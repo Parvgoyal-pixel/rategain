@@ -34,9 +34,6 @@ try:
     firebase_admin.initialize_app(cred)
 except ValueError:
     pass # Already initialized
-# Clerk handles multi-domain SSO, so we no longer need complex cross-domain cookies!
-
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE = os.path.join(BASE_DIR, "users.db")
 
@@ -46,6 +43,7 @@ def get_db_connection():
     return conn
 
 def init_db():
+    print("Initializing SQLite database...")
     with get_db_connection() as conn:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS users (
@@ -65,6 +63,7 @@ def init_db():
         except sqlite3.OperationalError:
             pass
         conn.commit()
+    print("Database initialized!")
 
 init_db()
 
@@ -93,7 +92,7 @@ def login_firebase():
             conn.commit()
             role = 'User'
         else:
-            role = existing["role"] if existing["role"] else "User"
+            role = existing["role"] or "User"
             
         conn.close()
         

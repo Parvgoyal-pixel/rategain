@@ -52,13 +52,19 @@ DB_CONFIG = {
 DB_NAME = os.environ.get('DB_NAME', 'usersDB')
 
 def get_db_connection():
-    """Establishes and returns a connection to MySQL, auto-selecting the database."""
+    """Establishes and returns a connection to MySQL."""
+    config = DB_CONFIG.copy()
+    config['database'] = DB_NAME
+    conn = mysql.connector.connect(**config)
+    return conn
+
+def init_db():
+    print("Initializing database schema...")
     conn = mysql.connector.connect(**DB_CONFIG)
     cursor = conn.cursor()
     cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME}")
     conn.database = DB_NAME
     
-   
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -80,12 +86,11 @@ def get_db_connection():
     
     conn.commit()
     
-    # Try to add role column in case table already exists
     try:
         cursor.execute("ALTER TABLE users ADD COLUMN role VARCHAR(50) DEFAULT 'Admin'")
         conn.commit()
     except Error:
-        pass # Column likely already exists
+        pass
         
     try:
         cursor.execute("ALTER TABLE users ADD COLUMN password_hash VARCHAR(255) NULL")
@@ -94,7 +99,14 @@ def get_db_connection():
         pass
         
     cursor.close()
-    return conn
+    conn.close()
+    print("Database schema initialized!")
+
+# Run initialization exactly once when the server starts
+try:
+    init_db()
+except Exception as e:
+    print(f"Warning: Database initialization failed: {e}")
 
 
 @app.route("/")
@@ -268,12 +280,4 @@ def verify_sso_token():
         return jsonify({"error": "Invalid or expired token"}), 401
 
 if __name__ == "__main__":
-    try:
-        print("Initializing database connection...")
-        test_conn = get_db_connection()
-        test_conn.close()
-        print("Database 'usersDB' initialized successfully!")
-    except Exception as e:
-        print(f"Database Initialization Error: {e}")
-
     app.run(debug=True)
