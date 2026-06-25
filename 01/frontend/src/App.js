@@ -2,7 +2,7 @@ import axios from "axios";
 import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import { auth } from "./firebase";
-import { signInWithPopup, GoogleAuthProvider, GithubAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
+import { signInWithPopup, GoogleAuthProvider, GithubAuthProvider, signInWithCustomToken, signOut, onAuthStateChanged } from "firebase/auth";
 
 axios.defaults.withCredentials = true;
 
@@ -24,6 +24,8 @@ function App() {
       const redirectUri = urlParams.get('redirect');
       const ssoCheck = urlParams.get('sso_check');
 
+      const ssoToken = urlParams.get('sso_token');
+
       if (action === 'logout') {
         isLoggingOut.current = true;
         try {
@@ -38,6 +40,19 @@ function App() {
           setLoading(false);
         }
         return; 
+      }
+
+      if (ssoToken && ssoToken !== "none") {
+        try {
+          const res = await axios.post(`${BACKEND_URL}/verify-sso-token`, { sso_token: ssoToken });
+          await signInWithCustomToken(auth, res.data.firebase_token);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } catch(e) {
+          console.error("SSO Token Verification Failed:", e);
+        }
+      } else if (ssoToken === "none") {
+        sessionStorage.setItem("has_checked_sso", "true");
+        window.history.replaceState({}, document.title, window.location.pathname);
       }
 
       unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -71,6 +86,11 @@ function App() {
           if (isLoggingOut.current) {
             setLoading(false);
             return;
+          }
+          if (!ssoToken && !sessionStorage.getItem("has_checked_sso")) {
+             sessionStorage.setItem("has_checked_sso", "true");
+             window.location.href = `${OTHER_APP_URL}?sso_check=true&redirect=${window.location.href}`;
+             return;
           }
           setLoading(false);
         }

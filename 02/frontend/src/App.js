@@ -29,6 +29,8 @@ function App() {
       const redirectUri = urlParams.get('redirect');
       const ssoToken = urlParams.get('sso_token');
 
+      const ssoCheck = urlParams.get('sso_check');
+
       if (action === 'logout') {
         isLoggingOut.current = true;
         try {
@@ -61,6 +63,17 @@ function App() {
 
       unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
+          if (ssoCheck && redirectUri) {
+             try {
+                const idToken = await firebaseUser.getIdToken();
+                const res = await axios.post(`${OTHER_BACKEND_URL}/generate-sso-token`, { idToken });
+                window.location.href = `${redirectUri}?sso_token=${res.data.sso_token}`;
+                return;
+             } catch(e) {
+                console.error(e);
+             }
+          }
+
           try {
             const idToken = await firebaseUser.getIdToken();
             const res = await axios.post(`${BACKEND_URL}/login-firebase`, { idToken });
@@ -72,6 +85,12 @@ function App() {
           setLoading(false);
         } else {
           setUser(null);
+          
+          if (ssoCheck && redirectUri) {
+             window.location.href = `${redirectUri}?sso_token=none`;
+             return;
+          }
+
           if (isLoggingOut.current) {
             setLoading(false);
             return;
@@ -124,9 +143,17 @@ function App() {
   };
 
   const handleGoToAppA = async () => {
-    // Going to App A doesn't strictly need a token since App A is the "Master" authenticator that already checks Firebase.
-    // But we can redirect.
-    window.location.href = OTHER_APP_URL;
+    if (user && auth.currentUser) {
+      try {
+        const idToken = await auth.currentUser.getIdToken();
+        const res = await axios.post(`${OTHER_BACKEND_URL}/generate-sso-token`, { idToken });
+        window.location.href = `${OTHER_APP_URL}?sso_token=${res.data.sso_token}`;
+      } catch(e) {
+        window.location.href = OTHER_APP_URL;
+      }
+    } else {
+      window.location.href = OTHER_APP_URL;
+    }
   };
 
   if (loading) {
