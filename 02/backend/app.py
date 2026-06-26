@@ -107,42 +107,7 @@ def login_firebase():
         print(f"Firebase auth error: {e}")
         return jsonify({"error": "Invalid token"}), 401
 
-@app.route("/sso-check")
-def sso_check():
-    redirect_url = request.args.get("redirect")
-    if not redirect_url:
-        return jsonify({"error": "Missing redirect url"}), 400
-        
-    # Prevent Open Redirect Vulnerability
-    parsed_url = urlparse(redirect_url)
-    if parsed_url.netloc not in ALLOWED_DOMAINS:
-        return jsonify({"error": "Unauthorized redirect domain"}), 403
-        
-    user_data = session.get("user")
-    if user_data and "uid" in user_data:
-        try:
-            custom_token = firebase_auth.create_custom_token(user_data["uid"])
-            token_str = custom_token.decode("utf-8") if isinstance(custom_token, bytes) else custom_token
-            return redirect(f"{redirect_url}?token={token_str}")
-        except Exception as e:
-            print(f"Error creating custom token: {e}")
-            return redirect(f"{redirect_url}?error=token_generation_failed")
-    else:
-        return redirect(f"{redirect_url}?error=not_logged_in")
 
-@app.route("/sso-check-ajax")
-def sso_check_ajax():
-    user_data = session.get("user")
-    if user_data and "uid" in user_data:
-        try:
-            custom_token = firebase_auth.create_custom_token(user_data["uid"])
-            token_str = custom_token.decode("utf-8") if isinstance(custom_token, bytes) else custom_token
-            return jsonify({"token": token_str})
-        except Exception as e:
-            print(f"Error creating custom token: {e}")
-            return jsonify({"error": "token_generation_failed"}), 500
-    else:
-        return jsonify({"error": "not_logged_in"}), 401
 
 @app.route("/user")
 def user():
