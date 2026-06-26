@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify, session, redirect, url_for
 from urllib.parse import urlparse
 from flask_cors import CORS
-from flask_session import Session
 import sqlite3
 import os
 import json

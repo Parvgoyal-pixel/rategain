@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify, session, redirect, url_for
 from urllib.parse import urlparse
 from flask_cors import CORS
-from flask_session import Session
 
 import mysql.connector
 from mysql.connector import Error
@@ -39,8 +38,6 @@ try:
     firebase_admin.initialize_app(cred)
 except ValueError:
     pass
-
-# Clerk handles multi-domain SSO, so we no longer need complex cross-domain cookies!
 
 DB_CONFIG = {
     'host': os.environ.get('DB_HOST', 'localhost'),
